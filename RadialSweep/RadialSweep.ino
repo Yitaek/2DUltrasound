@@ -57,16 +57,17 @@ unsigned int zeroPos = 0;
 int angle = 0;
 const int stepsPerRevolution = 1600;  // change this to fit the number of steps per revolution
 // for your motor
-
+volatile boolean dostep = 0;
 // initialize the stepper library on pins 8 through 11:
 Stepper myStepper(stepsPerRevolution, 8, 9);
 
 int stepCount = 0;
 const int buttonPin = 5;
 //const int outputPin = 11;
-const int inputPin = 7;
+const int inputPin = 3;
 int buttonState = 0;
-
+//int LEDpin = 10;
+//volatile int state = LOW;
 void setup() {
   //  pinMode(ledPin, OUTPUT);
   pinMode(buttonPin, INPUT);
@@ -75,7 +76,6 @@ void setup() {
   pinMode(encoder0PinB, INPUT);
   digitalWrite(encoder0PinB, HIGH);       // turn on pullup resistor
   attachInterrupt(0, doEncoder, CHANGE);  // encoder pin on interrupt 0 - pin 2
-  attachInterrupt(digitalPinToInterrupt(inputPin), increment, RISING);
   setPwmFrequency(10, 1);
   Serial.begin (9600);
   myStepper.setSpeed(200);
@@ -90,6 +90,8 @@ void setup() {
   Serial.println (encoder0Pos, DEC);
   encoderVal = encoder0Pos;
   zeroPos = encoderVal - 256;
+  currentVal = zeroPos;
+  prevVal = currentVal - 4;
   delay(500);
   while (encoder0Pos > zeroPos) {
     myStepper.step(-1);
@@ -97,48 +99,58 @@ void setup() {
   }
   angle = encoder0Pos - zeroPos;
   angle = angle * 0.35;
+  attachInterrupt(digitalPinToInterrupt(inputPin), increment, RISING);
 }
 
-void loop() {}
+
+void loop() {
+// digitalWrite(LEDpin, state);
+  if (dostep) {
+    
+    dostep = 0;
+    if ((currentVal > prevVal && currentVal < zeroPos + 128) || currentVal < zeroPos - 128 ) { //moving forward
+      while (encoder0Pos < currentVal + 4) {
+        myStepper.step(1);
+      }
+      prevVal = currentVal;
+      currentVal = encoder0Pos;
+      angle = encoder0Pos - zeroPos;
+      angle = angle * 0.35;
+      for (int i = 0; i < 50; i++) {
+        xVal[i] = (255 / 5) * (1 + rVal[i] * cos(2 * 3.14 / 360 * angle));
+        yVal[i] = (255 / 5) * (1 + rVal[i] * sin(2 * 3.14 / 360 * angle));
+
+        analogWrite(10, yVal[i]);
+        analogWrite(11, xVal[i]);
+
+      }
+    }
+    else {
+      while (encoder0Pos > currentVal - 4) {
+        myStepper.step(-1);
+      }
+      currentVal = encoder0Pos;
+      angle = encoder0Pos - zeroPos;
+      angle = angle * 0.35;
+      for (int i = 0; i < 50; i++) {
+        xVal[i] = (255 / 5) * (1 + rVal[i] * cos(2 * 3.14 / 360 * angle));
+        yVal[i] = (255 / 5) * (1 + rVal[i] * sin(2 * 3.14 / 360 * angle));
+
+        analogWrite(10, yVal[i]);
+        analogWrite(11, xVal[i]);
+
+      }
+    }
+   
+  }
+}
+
+
+
 
 void increment() {
-  if ((currentVal > prevVal && currentVal < zeroPos + 128) || currentVal < zeroPos - 128 ) { //moving forward
-    while (encoder0Pos < currentVal + 4) {
-      myStepper.step(1);
-    }
-    prevVal = currentVal;
-    currentVal = encoder0Pos;
-    angle = encoder0Pos - zeroPos;
-    angle = angle * 0.35;
-    for (int i = 0; i < 50; i++) {
-      xVal[i] = (255 / 5) * (1 + rVal[i] * cos(2 * 3.14 / 360 * angle));
-      yVal[i] = (255 / 5) * (1 + rVal[i] * sin(2 * 3.14 / 360 * angle));
+  dostep = 1;
 
-      analogWrite(10, yVal[i]);
-      analogWrite(11, xVal[i]);
-
-      // 1000 Hz sampling rate
-      delay(1);
-    }
-  }
-  else {
-    while (encoder0Pos > currentVal - 4) {
-      myStepper.step(-1);
-    }
-    currentVal = encoder0Pos;
-    angle = encoder0Pos - zeroPos;
-    angle = angle * 0.35;
-    for (int i = 0; i < 50; i++) {
-      xVal[i] = (255 / 5) * (1 + rVal[i] * cos(2 * 3.14 / 360 * angle));
-      yVal[i] = (255 / 5) * (1 + rVal[i] * sin(2 * 3.14 / 360 * angle));
-
-      analogWrite(10, yVal[i]);
-      analogWrite(11, xVal[i]);
-
-      // 1000 Hz sampling rate
-      delay(1);
-    }
-  }
 }
 void doEncoder() {
   /* If pinA and pinB are both high or both low, it is spinning
@@ -180,9 +192,7 @@ void doEncoder_Expanded() {
     }
 
   }
-  //Serial.println (encoder0Pos, DEC);          // debug - remember to comment out
-  // before final program run
-  // you don't want serial slowing down your program if not needed
+
 }
 
 /*  to read the other two transitions - just use another attachInterrupt()
@@ -190,3 +200,4 @@ in the setup and duplicate the doEncoder function into say,
 doEncoderA and doEncoderB.
 You also need to move the other encoder wire over to pin 3 (interrupt 1).
 */
+
